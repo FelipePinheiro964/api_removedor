@@ -7,17 +7,21 @@ import os
 
 app = Flask(__name__)
 
-# --- O SEGREDO DO MODO LITE ---
-# Carregamos a "Sessão" globalmente com o modelo 'u2netp' (Leve/Mobile)
-# Isso faz o download ser rapido (4MB vs 176MB) e usa pouca RAM.
+# Carrega o modelo leve para economizar RAM
 model_name = "u2netp"
 session = new_session(model_name)
 
 def processar_imagem(image_bytes, bg_color=None):
-    input_image = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    img = Image.open(BytesIO(image_bytes)).convert("RGBA")
     
-    # Passamos a session aqui para usar o modelo leve
-    output_image = remove(input_image, session=session)
+    # --- A PROTEÇÃO ANTI-CRASH ---
+    # Se a imagem for maior que 1024px, reduz ela proporcionalmente.
+    # Isso salva a memoria do servidor gratuito.
+    img.thumbnail((1024, 1024)) 
+    # -----------------------------
+
+    # Remove o fundo usando a sessão leve
+    output_image = remove(img, session=session)
     
     extension = '.png'
     mimetype = 'image/png'
@@ -35,7 +39,7 @@ def processar_imagem(image_bytes, bg_color=None):
             print(f"Erro na cor {bg_color}: {e}")
 
     img_io = BytesIO()
-    output_image.save(img_io, format_img)
+    output_image.save(img_io, format_img, quality=90) # Quality ajuda a comprimir
     img_io.seek(0)
     return img_io, mimetype, extension
 
@@ -48,7 +52,7 @@ def remove_background():
     bg_color = request.form.get('color')
     filename = file.filename
     
-    # --- MODO 1: ZIP ---
+    # MODO 1: ZIP
     if filename.lower().endswith('.zip'):
         try:
             input_zip = zipfile.ZipFile(file)
@@ -73,7 +77,7 @@ def remove_background():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # --- MODO 2: UNICO ---
+    # MODO 2: UNICO
     else:
         try:
             img_io, mimetype, ext = processar_imagem(file.read(), bg_color)
