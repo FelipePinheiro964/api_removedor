@@ -1,0 +1,5 @@
+flask
+rembg[cpu]
+onnxruntime
+pillow
+gunicorn
